@@ -1,0 +1,638 @@
+<!-- PHP logic removed -->
+session_start();
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header("Location: login.php");
+    exit();
+}
+<!-- End of PHP logic -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nail Salon POS</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+    
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 600px;
+        }
+        
+        .close-button {
+            color: red;
+            float: right;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        
+        .responsive-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .responsive-table th, .responsive-table td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        @media (max-width: 600px) {
+            .responsive-table th, .responsive-table td {
+                display: block;
+                width: 100%;
+            }
+        }
+
+        /* Custom styles for the grid */
+        .service-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-left:10px;
+        }
+        .service-item {
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #f0f0f0;
+            color: black;
+            font-size: 1.2rem;
+            text-align: center;
+            cursor: pointer;
+            box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            transition: transform 0.2s ease;
+            font-weight: bold;
+        }
+        .service-item:hover {
+            transform: translateY(-3px);
+        }
+        .service-item small {
+            display: block;
+            font-size: 1rem;
+            color: black;
+        }
+
+        /* Calculation list */
+        .calculation-list {
+            background-color: #f8f9fa;
+            padding: 15px;
+            height: 100%;
+        }
+        .calculation-item {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dotted #000;
+            padding: 5px 0;
+            font-weight: bold;
+            align-items: center;
+        }
+        .remove-icon {
+            cursor: pointer;
+            color: red;
+            margin-left: 10px;
+        }
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .numpad button, .action-buttons button {
+            width: 100%;
+            padding: 10px;
+            font-size: 1.5rem;
+        }
+        /* Header bar */
+        .header-bar {
+            background-color: #fff;
+            color: black;
+            padding: 10px;
+            border-bottom: 5px solid red;
+        }
+        .header-bar img {
+            height: 50px;
+        }
+        
+        /* History Button */
+        .history-btn{
+            margin-top: 2px; /* Adjust this value to control space above */
+            justify-content: space-between; /* Ensures buttons are spaced out */
+            right:5px;
+        }
+        
+        /* Tender and Print Buttons */
+        .action-buttons {
+            margin-top: 10px; /* Adjust this value to control space above */
+            display: flex;
+            justify-content: space-between; /* Ensures buttons are spaced out */
+        }
+        
+        .action-buttons button {
+            margin-bottom: 10px; /* Add space below each button */
+            width: 48%; /* Adjust the width to fit both buttons on the same line */
+        }
+
+
+        /* Cash and Exchange section */
+        .cash-calculator {
+            margin-top: 20px;
+        }
+        .cash-calculator input {
+            margin-bottom: 10px;
+        }
+        
+        .footer-bar {
+            background: linear-gradient(to right, darkgray, black);
+            color: white;
+            font-size: 12px;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .left-align {
+            float: left;
+        }
+        
+        .right-align {
+            float: right;
+        }
+
+    </style>
+</head>
+<header>
+    
+</header>
+
+<!-- Modal structure for sales history -->
+<div id="history-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h2>Sales History</h2>
+        <table id="sales-history-table" class="responsive-table">
+            <!-- Table content will be populated dynamically -->
+        </table>
+    </div>
+</div>
+
+<body>
+
+<div class="container-fluid">
+    <!-- Header Bar -->
+    <div class="row header-bar align-items-center mb-3">
+        <div class="col-md-2">
+            <img src="Logo-1000px.png" alt="Logo">
+        </div>
+        <div class="col-md-8"></div> <!-- This empty column creates space between the logo and the button -->
+        <div class="col-md-2 text-end"> <!-- Align the button to the right -->
+            <!-- Add History button -->
+            <button id="history-button" class="history-btn btn btn-dark">History</button>
+        </div>
+    </div>
+</div>
+
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Left Section (2/3) - Service Grid -->
+        <div class="col-md-8">
+            <div class="service-grid">
+                <!-- Each service item has a price displayed below the name -->
+                <div class="service-item" data-service="Manicure" data-price="25.00" style="background-color: #FF6347;">
+                    Manicure
+                    <small>$25.00</small>
+                </div>
+                <div class="service-item" data-service="Pedicure" data-price="30.00" style="background-color: #4682B4;">
+                    Pedicure
+                    <small>$30.00</small>
+                </div>
+                <div class="service-item" data-service="Gel" data-price="35.00" style="background-color: #32CD32;">
+                    Gel
+                    <small>$35.00</small>
+                </div>
+                <div class="service-item" data-service="Shellac" data-price="40.00" style="background-color: #FFD700;">
+                    Shellac
+                    <small>$40.00</small>
+                </div>
+                <div class="service-item" data-service="Design" data-price="50.00" style="background-color: #FF69B4;">
+                    Design
+                    <small>$50.00</small>
+                </div>
+                <div class="service-item" data-service="Remove" data-price="20.00" style="background-color: #8A2BE2;">
+                    Remove
+                    <small>$20.00</small>
+                </div>
+                <div class="service-item" data-service="Threading" data-price="15.00" style="background-color: #FF8C00;">
+                    Threading
+                    <small>$15.00</small>
+                </div>
+                <div class="service-item" data-service="Eyebrow" data-price="12.00" style="background-color: #DC143C;">
+                    Eyebrow
+                    <small>$12.00</small>
+                </div>
+                <div class="service-item" data-service="Eyelash" data-price="18.00" style="background-color: #00CED1;">
+                    Eyelash
+                    <small>$18.00</small>
+                </div>
+                <div class="service-item" data-service="WAX" data-price="25.00" style="background-color: #FF4500;">
+                    WAX
+                    <small>$25.00</small>
+                </div>
+                <div class="service-item" data-service="Blank" data-price="0.00" style="background-color: #B0C4DE;">
+                    Blank
+                    <small>$0.00</small>
+                </div>
+                <div class="service-item" data-service="Blank" data-price="0.00" style="background-color: #D3D3D3;">
+                    Blank
+                    <small>$0.00</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Receipt Preview Modal -->
+        <div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="receiptModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="receiptModalLabel">Receipt Preview</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="receipt-content">
+                        <!-- Receipt content will be inserted here -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" id="print-receipt-button">Print Receipt</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Right Section (1/3) - Calculation and Price List -->
+        <div class="col-md-4">
+            <div class="calculation-list" id="calculation-list">
+                <h5 class="d-flex justify-content-between">
+                    Added Services
+                    <button class="btn btn-warning btn-sm" id="clear-button">Clear</button> <!-- Clear Button -->
+                </h5>
+                <hr>
+                <div id="services-container">
+                    <!-- Dynamically added services will appear here -->
+                </div>
+        
+                <div id="subtotal" class="calculation-item">
+                    <span>Subtotal</span>
+                    <span>$0.00</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="tax-option">Tax Option:</label>
+                    <select class="form-select" id="tax-option">
+                        <option value="0.13">13%</option>
+                        <option value="0.05">5%</option>
+                        <option value="manual">Manual Entry</option>
+                    </select>
+                    <input type="number" class="form-control mt-2" id="manual-tax" placeholder="Enter custom tax %" style="display:none;" min="0" step="0.01">
+                </div>
+        
+                <div id="tax" class="calculation-item">
+                    <span>Tax</span>
+                    <span>$0.00</span>
+                </div>
+        
+                <div id="grand-total" class="calculation-item">
+                    <span>Grand Total</span>
+                    <span>$0.00</span>
+                </div>
+        
+                <!-- Discount and Tip Input -->
+                <div class="form-group mt-3">
+                    <label for="discount-input">Discount:</label>
+                    <input type="number" class="form-control" id="discount-input" placeholder="Enter discount amount">
+                </div>
+                <div class="form-group mt-3">
+                    <label for="tip-input">Tip:</label>
+                    <input type="number" class="form-control" id="tip-input" placeholder="Enter tip amount">
+                </div>
+        
+                <!-- Cash and Exchange Calculator -->
+                <div class="form-group mt-3">
+                    <label for="cash-received-input">Cash Received:</label>
+                    <input type="number" class="form-control" id="cash-received-input" placeholder="Enter cash received">
+                </div>
+                <div class="calculation-item">
+                    <span>Change to Return</span>
+                    <span id="change-to-return">$0.00</span>
+                </div>
+                <!-- Tender and Print Buttons -->
+                <div class="action-buttons">
+                    <button class="btn btn-success" id="tender-button">Tender</button>
+                    <button class="btn btn-info" id="print-button">Print Receipt</button>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary btn-block" id="reprint-button">Re-Print Receipt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap and jQuery JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+
+    // Get the modal
+    const historyModal = document.getElementById("history-modal");
+    
+    // Get the button that opens the modal
+    const historyButton = document.getElementById("history-button");
+    
+    // Get the <span> element that closes the modal
+    const closeButton = document.querySelector(".close-button");
+    
+    // When the user clicks on the button, open the modal
+    historyButton.onclick = function() {
+        historyModal.style.display = "block";
+        // Populate sales history here dynamically if needed
+    }
+    
+    // When the user clicks on <span> (x), close the modal
+    closeButton.onclick = function() {
+        historyModal.style.display = "none";
+    }
+    
+    // When the user clicks anywhere outside of the modal, close it
+    window.onclick = function(event) {
+        if (event.target == historyModal) {
+            historyModal.style.display = "none";
+        }
+    }
+
+
+    let addedServices = [];
+
+    // Update the current date and time
+    function updateDateTime() {
+        const now = new Date();
+        document.getElementById('current-date-time').innerText = now.toLocaleString();
+    }
+
+    // Event listeners for service items
+    $('.service-item').on('click', function () {
+        const serviceName = $(this).data('service');
+        const servicePrice = parseFloat($(this).data('price'));
+        addedServices.push({ name: serviceName, price: servicePrice });
+
+        // Update calculation
+        updateCalculation();
+
+        // Append service to the list
+        appendServiceToList();
+    });
+
+    // Clear button functionality
+    $('#clear-button').on('click', function () {
+        addedServices = [];
+        $('#services-container').empty();
+        
+        // Clear discount, tip, and cash received inputs
+        $('#discount-input').val('');
+        $('#tip-input').val('');
+        $('#cash-received-input').val('');
+        
+        updateCalculation(); // Update calculations after clearing
+    });
+
+    // Append service to the list with row number and remove icon
+    function appendServiceToList() {
+        updateCalculation();
+        const index = addedServices.length - 1; // Get index of the newly added service
+        const serviceHtml = `
+            <div class="calculation-item" id="service-${index}">
+                <span>${index + 1}. ${addedServices[index].name}</span>
+                <span>$${addedServices[index].price.toFixed(2)}</span>
+                <span class="remove-icon" onclick="removeService(${index})">&times;</span>
+            </div>
+        `;
+        $('#services-container').append(serviceHtml);
+    }
+
+    // Function to remove a service and re-index
+    function removeService(index) {
+        addedServices.splice(index, 1);
+        $('#services-container').empty(); // Clear the list
+        addedServices.forEach((service, i) => {
+            const serviceHtml = `
+                <div class="calculation-item" id="service-${i}">
+                    <span>${i + 1}. ${service.name}</span>
+                    <span>$${service.price.toFixed(2)}</span>
+                    <span class="remove-icon" onclick="removeService(${i})">&times;</span>
+                </div>
+            `;
+            $('#services-container').append(serviceHtml);
+        });
+        updateCalculation(); // Update calculations after removal
+    }
+
+    // Update calculations for subtotal, tax, and grand total
+    function updateCalculation() {
+        let subtotal = 0;
+        const subtotalElement = document.getElementById('subtotal').querySelector('span:last-child');
+        const taxElement = document.getElementById('tax').querySelector('span:last-child');
+        const grandTotalElement = document.getElementById('grand-total').querySelector('span:last-child');
+        const changeToReturnElement = document.getElementById('change-to-return');
+
+        // Calculate subtotal
+        addedServices.forEach(service => {
+            subtotal += service.price;
+        });
+
+        // Update subtotal
+        subtotalElement.textContent = `$${subtotal.toFixed(2)}`;
+
+        // Update tax and grand total
+        let taxRate = document.getElementById('tax-option').value;
+        if (taxRate === 'manual') {
+            taxRate = parseFloat(document.getElementById('manual-tax').value) / 100 || 0;
+        } else {
+            taxRate = parseFloat(taxRate);
+        }
+
+        const tax = subtotal * taxRate; // Apply tax
+        taxElement.textContent = `$${tax.toFixed(2)}`;
+
+        const discount = parseFloat(document.getElementById('discount-input').value) || 0;
+        const tip = parseFloat(document.getElementById('tip-input').value) || 0;
+        const grandTotal = subtotal + tax - discount + tip; // Calculate grand total
+        grandTotalElement.textContent = `$${grandTotal.toFixed(2)}`;
+
+        // Cash received and change calculation
+        const cashReceived = parseFloat(document.getElementById('cash-received-input').value) || 0;
+        const changeToReturn = cashReceived - grandTotal;
+
+        // Ensure change is not negative
+        if (changeToReturn < 0) {
+            changeToReturnElement.textContent = 'Insufficient cash!';
+        } else {
+            changeToReturnElement.textContent = `$${changeToReturn.toFixed(2)}`;
+        }
+    }
+
+    // Event listeners for inputs
+    $('#discount-input, #tip-input, #cash-received-input').on('input', updateCalculation);
+
+    // Manual tax toggle
+    $('#tax-option').on('change', function () {
+        if ($(this).val() === 'manual') {
+            $('#manual-tax').show();
+        } else {
+            $('#manual-tax').hide();
+            updateCalculation();
+        }
+    });
+
+    // Update date and time every second
+    setInterval(updateDateTime, 1000);
+    
+    // Tender button functionality
+    $('#tender-button').on('click', function () {
+        let receiptContent = "";
+        
+        // Generate a unique reference number
+        const uniqueRefNumber = 'REF-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    
+        // Get the current date and time
+        const now = new Date();
+        const formattedDateTime = now.toLocaleString();
+        
+        // Add services to receipt
+        let services = [];
+        addedServices.forEach((service, index) => {
+            services.push(`${index + 1}. ${service.name}  ${service.count} x  $${service.price.toFixed(2)}   $${(service.price * service.count).toFixed(2)}`);
+        });
+        
+        // Subtotal, tax, discount, tip, grand total, cash received
+        const subtotal = parseFloat(document.getElementById('subtotal').querySelector('span:last-child').innerText.replace('$', ''));
+        const tax = parseFloat(document.getElementById('tax').querySelector('span:last-child').innerText.replace('$', ''));
+        const discount = parseFloat(document.getElementById('discount-input').value) || 0;
+        const tip = parseFloat(document.getElementById('tip-input').value) || 0;
+        const grandTotal = parseFloat(document.getElementById('grand-total').querySelector('span:last-child').innerText.replace('$', ''));
+        const cashReceived = parseFloat(document.getElementById('cash-received-input').value) || 0;
+        const changeToReturn = cashReceived - grandTotal;
+    
+        // Prepare data to send
+        const data = {
+            services: JSON.stringify(services),
+            subtotal: subtotal,
+            tax: tax,
+            discount: discount,
+            tip: tip,
+            grand_total: grandTotal,
+            cash_received: cashReceived,
+            change_returned: changeToReturn,
+            receipt_datetime: now.toISOString(),
+            receipt_reference: uniqueRefNumber
+        };
+    
+        // Send data via AJAX to save_receipt.php
+        $.ajax({
+            type: 'POST',
+            url: 'save_receipt.php',
+            data: data,
+            success: function(response) {
+                const result = JSON.parse(response);
+                if (result.status === 'success') {
+                    alert('Receipt saved successfully!');
+                } else {
+                    alert('Error saving receipt: ' + result.message);
+                }
+            }
+        });
+    
+        // Display receipt content
+        receiptContent += `<img src="Logo-1000px.png" alt="Logo" style="width: 100%; max-width: 200px;"/>`;
+        receiptContent += "<div>--------------------------</div>";
+        receiptContent += `<div>${formattedDateTime}</div>`;
+        receiptContent += "<div>--------------------------</div>";
+        receiptContent += "<h5>647-847-1414</h5>";
+        receiptContent += "<div>--------------------------</div>";
+        receiptContent += "<h5>Receipt</h5>";
+        receiptContent += "<div>--------------------------</div>";
+        
+        addedServices.forEach((service, index) => {
+            receiptContent += `<div>${index + 1}. ${service.name}: $${service.price.toFixed(2)}</div>`;
+        });
+        
+        receiptContent += "<div>--------------------------</div>";
+        receiptContent += `<div>Subtotal: $${subtotal.toFixed(2)}</div>`;
+        receiptContent += `<div>Tax: $${tax.toFixed(2)}</div>`;
+        receiptContent += `<div>Discount: -$${discount.toFixed(2)}</div>`;
+        receiptContent += `<div>Tip: +$${tip.toFixed(2)}</div>`;
+        receiptContent += "<div>--------------------------</div>";
+        receiptContent += `<div>Grand Total: $${grandTotal.toFixed(2)}</div>`;
+        receiptContent += "<div>--------------------------</div>";
+        receiptContent += "<div>Thank you for your visit!</div>";
+        receiptContent += `<div>Ref#: ${uniqueRefNumber}</div>`;
+        
+        $('#receipt-content').html(receiptContent);
+        $('#receiptModal').modal('show');
+    });
+
+
+
+    // Print receipt functionality
+    $('#print-receipt-button').on('click', function () {
+        const receiptContent = document.getElementById('receipt-content').innerHTML;
+        
+        // Create a new window for printing
+        const printWindow = window.open('', '', 'height=600,width=800');
+        printWindow.document.write('<html><head><title>Print Receipt</title>');
+        printWindow.document.write('</head><body>');
+        printWindow.document.write(receiptContent);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.print();
+    });
+
+    function updateDateTime() {
+        const dateTime = new Date().toLocaleString();
+        document.getElementById("footer-date-time").innerText = dateTime;
+    }
+    
+    // Update the date/time every second
+    setInterval(updateDateTime, 1000);
+    
+    // You can also add session info dynamically if needed
+    document.getElementById("user-session-info").innerText = "Sara | Session Info";
+
+</script>
+
+</body>
+<footer id="footer" class="footer-bar">
+    <div id="footer-date-time" class="left-align"></div>
+    <div id="user-session-info" class="right-align">Sara | session info</div>
+</footer>
+
+</html>

@@ -1,0 +1,200 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order History</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="container mt-4">
+    <h2>Order History</h2>
+
+    <!-- Section for Today's Orders -->
+    <div class="mb-4">
+        <h3>Today's Orders</h3>
+        <table class="table table-striped" id="today-orders">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Subtotal</th>
+                    <th>Tax</th>
+                    <th>Grand Total</th>
+                    <th>Created At</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Receipt Preview Modal -->
+    <div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="receiptModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="receiptModalLabel">Receipt Preview</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="receipt-content">
+                    <!-- Receipt content will be dynamically inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="print-receipt-button">Print Receipt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'main_app/js/main.js' %}"></script>
+
+<script>
+    const allOrders = JSON.parse('{{ all_orders_json|escapejs }}');
+
+    function formatDate(dateString) {
+        const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        return new Date(dateString).toLocaleDateString('en-US', options);
+    }
+
+    function displayOrders(orders, tableId) {
+        const tableBody = document.getElementById(tableId).querySelector('tbody');
+        orders.forEach(order => {
+            const row = `
+                <tr class="view-order-row" data-order-id="${order.pk}">
+                    <td>${order.pk}</td>
+                    <td>$${order.fields.subtotal}</td>
+                    <td>$${order.fields.tax}</td>
+                    <td>$${order.fields.grand_total}</td>
+                    <td>${formatDate(order.fields.created_at)}</td>
+                    <td><button class="btn btn-primary view-order-btn" data-order-id="${order.pk}">View</button></td>
+                </tr>
+            `;
+            tableBody.innerHTML += row;
+        });
+    }
+
+    // Display the orders
+    displayOrders(allOrders, 'today-orders');
+
+    // Handle clicking the view button to fetch and display the receipt
+    $(document).on('click', '.view-order-btn', function() {
+        const orderId = $(this).data('order-id');
+
+        $.ajax({
+            url: `/order_details/${orderId}/`,  // Fetch the order details
+            type: 'GET',
+            success: function(response) {
+                if (response.status === 'success') {
+                    const order = response.order;
+
+                    // Ensure subtotal and other amounts are treated as numbers
+                    const subtotal = parseFloat(order.subtotal) || 0;
+                    const tax = parseFloat(order.tax) || 0;
+                    const grandTotal = parseFloat(order.grand_total) || 0;
+                    const cashReceived = parseFloat(order.cash_received) || 0;
+                    const cardReceived = parseFloat(order.card_received) || 0;
+                    const changeReturned = parseFloat(order.change_returned) || 0;
+
+                    // Build the receipt HTML
+                    let receiptContent = `
+                        <div style="text-align: center;">
+                            <img src="/static/main_app/images/Logo-1000px.png" alt="Logo" style="width: 100%; max-width: 150px;"/>
+                        </div>
+                        <div style="text-align: center; font-size: 1.5em; margin: 10px 0;">
+                            <strong>Nail Salon POS Receipt</strong>
+                        </div>
+                        <div style="text-align: center;">${order.created_at}</div>
+                        <hr style="border-top: 1px solid #000;"/>
+                        <div style="text-align: center; font-size: 1.2em; margin-bottom: 10px;">
+                            <strong>Customer Information</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Customer:</strong> ${order.customer.first_name} ${order.customer.last_name}</span>
+                            <span><strong>Phone:</strong> ${order.customer.phone_number}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Email:</strong> ${order.customer.email}</span>
+                        </div>
+                        <hr style="border-top: 1px solid #000;"/>
+                        <div style="text-align: center; font-size: 1.2em; margin-bottom: 10px;">
+                            <strong>Services Purchased</strong>
+                        </div>`;
+
+                    // Check if services exist and iterate over them
+                    if (order.services && order.services.length > 0) {
+                        order.services.forEach((service, index) => {
+                            const serviceName = service.custom_service_name || service.service__name || 'Unnamed Service';
+                            const servicePrice = parseFloat(service.custom_service_price || service.service__price || 0);
+                            const serviceQuantity = parseInt(service.quantity) || 1;
+
+                            receiptContent += `
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>${index + 1}. ${serviceName} x${serviceQuantity}</span>
+                                    <span>$${(servicePrice * serviceQuantity).toFixed(2)}</span>
+                                </div>`;
+                        });
+                    } else {
+                        receiptContent += `
+                            <div style="text-align: center; font-size: 1em; margin-bottom: 10px;">
+                                <strong>No services found for this order.</strong>
+                            </div>`;
+                    }
+
+                    // Build the remaining receipt sections
+                    receiptContent += `
+                        <hr style="border-top: 1px solid #000;"/>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Subtotal</strong></span>
+                            <span><strong>$${subtotal.toFixed(2)}</strong></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Tax</strong></span>
+                            <span><strong>$${tax.toFixed(2)}</strong></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Grand Total</strong></span>
+                            <span><strong>$${grandTotal.toFixed(2)}</strong></span>
+                        </div>
+                        <hr style="border-top: 1px solid #000;"/>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Cash Received</strong></span>
+                            <span><strong>$${cashReceived.toFixed(2)}</strong></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Card Received</strong></span>
+                            <span><strong>$${cardReceived.toFixed(2)}</strong></span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Change Returned</strong></span>
+                            <span><strong>$${changeReturned.toFixed(2)}</strong></span>
+                        </div>
+                        <hr style="border-top: 1px solid #000;"/>
+                        <div style="text-align: center; margin-top: 10px;">
+                            <strong>Thank you for your visit!</strong>
+                        </div>`;
+
+                    // Inject the receipt into the modal and show it
+                    $('#receipt-content').html(receiptContent);
+                    $('#receiptModal').modal('show');
+                } else {
+                    alert('Error fetching order details: ' + response.message);
+                }
+            },
+            error: function() {
+                alert('Error fetching order details.');
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

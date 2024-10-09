@@ -1,0 +1,425 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nail Salon POS</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'main_app/css/styles.css' %}">
+    <!-- CSRF Token for AJAX requests -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+
+<header>
+
+    <div id="appointment-modal" class="modal fade" tabindex="-1" aria-labelledby="appointmentModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg"> <!-- Adjusted to modal-lg for larger size -->
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="appointmentModalLabel">Add Appointment</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Form to submit appointment data -->
+                            <form id="appointment-form" method="POST" action="{% url 'add_appointment' %}">
+                                {% csrf_token %} <!-- CSRF token for form security -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="customer-name" class="form-label">Customer Name</label>
+                                        <input type="text" class="form-control" id="customer-name" name="customer_name" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="phone-number" class="form-label">Phone Number</label>
+                                        <input type="text" class="form-control" id="phone-number" name="phone_number" required>
+                                    </div>
+                                </div>
+
+                                <!-- Service Dropdown -->
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="service" class="form-label">Service</label>
+                                        <select class="form-select" id="service" name="service" required>
+                                            {% for service in services %}
+                                                <option value="{{ service.id }}">{{ service.name }} - ${{ service.price }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="appointment-date" class="form-label">Date</label>
+                                        <input type="date" class="form-control" id="appointment-date" name="date" required>
+                                    </div>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="start-time" class="form-label">Start Time</label>
+                                        <input type="time" class="form-control" id="start-time" name="start_time" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="end-time" class="form-label">End Time</label>
+                                        <input type="time" class="form-control" id="end-time" name="end_time" required>
+                                    </div>
+                                </div>
+
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    <button type="submit" class="btn btn-primary">Add Appointment</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Button to Trigger the Modal -->
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointment-modal">
+                Add Appointment
+            </button>
+
+            <!-- Button to view appointments -->
+            <a href="{% url 'view_appointments' %}" class="btn btn-primary mt-4">See All Appointments</a>
+</header>
+
+<!-- Modal structure for sales history -->
+<div id="history-modal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h2>Sales History</h2>
+        <table id="sales-history-table" class="table table-striped">
+            <!-- The table body will be populated dynamically using JavaScript -->
+        </table>
+    </div>
+</div>
+
+<body>
+<!-- If a customer is selected, display their name -->
+{% if selected_customer %}
+<div class="alert alert-info">
+    Selected Customer: {{ selected_customer.first_name }} {{ selected_customer.last_name }}
+</div>
+{% endif %}
+
+<div class="container-fluid">
+    <!-- Header Bar -->
+    <div class="row header-bar align-items-center mb-3">
+        <div class="col-md-2">
+            <img src="{% static 'main_app/images/Logo-1000px.png' %}" alt="Logo">
+        </div>
+        <div class="col-md-8"></div> <!-- This empty column creates space between the logo and the button -->
+        <div class="col-md-2 text-end"> <!-- Align the button to the right -->
+            <!-- History button -->
+            <button id="history-button" class="history-btn btn btn-dark">History</button>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row">
+    <!-- Left Section (2/3) - Service Grid -->
+    <div class="col-md-8">
+        <!-- Button to trigger the modal -->
+        <div class="container mt-4">
+            <!-- Search form -->
+            <h3>Search Customer</h3>
+            <form method="GET" action="{% url 'search_customer' %}">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="search_query" name="search_query" placeholder="Enter customer name or phone number" required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary">Search</button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Search results section -->
+            {% if customers %}
+                <h5>Search Results:</h5>
+                <ul class="list-group">
+                    {% for customer in customers %}
+                        <li class="list-group-item">
+                            {{ customer.first_name }} {{ customer.last_name }} - {{ customer.phone_number }} - {{ customer.email }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% elif searched %}
+                <div class="alert alert-danger">No customer found. Please create a new one.</div>
+            {% endif %}
+
+            <!-- Button to trigger the modal -->
+            <button type="button" class="btn btn-primary mt-4" data-bs-toggle="modal" data-bs-target="#createCustomerModal">
+                Create Customer
+            </button>
+        </div>
+
+        <!-- Modal structure for creating a customer -->
+        <div class="modal fade" id="createCustomerModal" tabindex="-1" aria-labelledby="createCustomerModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="createCustomerModalLabel">Add New Customer</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form method="POST" action="{% url 'add_customer' %}">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="first_name" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="last_name" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="phone_number" class="form-label">Phone Number</label>
+                                <input type="text" class="form-control" id="phone_number" name="phone_number" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="date_of_birth" class="form-label">Date of Birth</label>
+                                <input type="date" class="form-control" id="date_of_birth" name="date_of_birth">
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Save Customer</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="service-grid">
+            <!-- Load services dynamically from the backend -->
+            {% for service in services %}
+            <div class="service-item" data-id="{{ service.id }}" data-service="{{ service.name }}" data-price="{{ service.price }}" style="background-color: #FF6347;">
+                {{ service.name }}
+                <small>${{ service.price }}</small>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Right Section (1/3) - Calculation and Price List -->
+    <div class="col-md-4">
+        <a href="{% url 'add_appointment' %}" class="btn btn-success mb-3">Add Appointment</a>
+
+    <!-- Button to view appointments -->
+        <a href="{% url 'view_appointments' %}" class="btn btn-primary mb-3">View Appointments</a>
+        <div class="form-group mt-3">
+            <label for="custom-service-name">Custom Service Name</label>
+            <input type="text" class="form-control" id="custom-service-name" placeholder="Enter custom service name">
+        </div>
+
+        <div class="form-group mt-3">
+            <label for="custom-service-price">Custom Service Price</label>
+            <input type="number" class="form-control" id="custom-service-price" placeholder="Enter custom service price" step="0.01" min="0">
+        </div>
+
+        <!-- Button to add custom service to the list -->
+        <button id="add-custom-service" class="btn btn-primary mt-3">Add Custom Service</button>
+
+        <div class="calculation-list" id="calculation-list">
+            <h5 class="d-flex justify-content-between">
+                Added Services
+                <button class="btn btn-warning btn-sm" id="clear-button">Clear</button> <!-- Clear Button -->
+            </h5>
+            <hr>
+            <div id="services-container">
+                <!-- Dynamically added services will appear here -->
+            </div>
+
+            <div id="subtotal" class="calculation-item">
+                <span>Subtotal</span>
+                <span>$0.00</span>
+            </div>
+
+            <div class="form-group">
+                <label for="tax-option">Tax Option:</label>
+                <select class="form-select" id="tax-option">
+                    <option value="0.13">13%</option>
+                    <option value="0.05">5%</option>
+                    <option value="manual">Manual Entry</option>
+                </select>
+                <input type="number" class="form-control mt-2" id="manual-tax" placeholder="Enter custom tax %" style="display:none;" min="0" step="0.01">
+            </div>
+
+            <div id="tax" class="calculation-item">
+                <span>Tax</span>
+                <span>$0.00</span>
+            </div>
+
+            <div id="grand-total" class="calculation-item">
+                <span>Grand Total</span>
+                <span>$0.00</span>
+            </div>
+
+            <!-- Discount and Tip Input -->
+            <div class="form-group mt-3">
+                <label for="discount-type">Discount:</label>
+                <div class="input-group">
+                    <select class="form-select" id="discount-type">
+                        <option value="amount">Amount</option>
+                        <option value="percentage">Percentage</option>
+                    </select>
+                    <input type="number" class="form-control" id="discount-input" placeholder="Enter discount">
+                </div>
+            </div>
+
+            <div class="form-group mt-3">
+                <label for="tip-type">Tip:</label>
+                <div class="input-group">
+                    <select class="form-select" id="tip-type">
+                        <option value="amount">Amount</option>
+                        <option value="percentage">Percentage</option>
+                    </select>
+                    <input type="number" class="form-control" id="tip-input" placeholder="Enter tip">
+                </div>
+            </div>
+            <div id="payment-warning" class="alert alert-danger" style="display: none;">
+                Insufficient payment. Please enter enough to cover the total.
+            </div>
+
+            <!-- Cash and Exchange Calculator -->
+            <div class="form-group mt-3">
+                <label for="cash-received-input">Cash Received:</label>
+                <input type="number" class="form-control" id="cash-received-input" placeholder="Enter cash received">
+            </div>
+            <div class="form-group mt-3">
+                <label for="card-received-input">Card Received:</label>
+                <input type="number" class="form-control" id="card-received-input" placeholder="Enter card payment amount">
+            </div>
+            <div class="calculation-item">
+                <span>Change to Return</span>
+                <span id="change-to-return">$0.00</span>
+            </div>
+
+            <!-- Tender and Print Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-success" id="tender-button">Tender</button>
+            </div>
+
+            <!-- Reprint Button -->
+            <!-- Reprint Button -->
+            <div class="action-buttons">
+                <button class="btn btn-primary btn-block" data-bs-toggle="modal" data-bs-target="#receiptModal">Re-Print Receipt</button>
+            </div>
+
+            <!-- Modal for Latest Order Receipt -->
+            <div class="modal fade" id="receiptModal" tabindex="-1" aria-labelledby="receiptModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="receiptModalLabel">Receipt Preview</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body" id="receipt-content">
+                            {% if order_data %}
+                                <div style="text-align: center;">
+                                    <img src="{% static 'main_app/images/Logo-1000px.png' %}" alt="Logo" style="width: 100%; max-width: 150px;"/>
+                                </div>
+                                <div style="text-align: center; font-size: 1.5em; margin: 10px 0;">
+                                    <strong>Nail Salon POS Receipt</strong>
+                                </div>
+                                <div style="text-align: center;">{{ order_data.created_at }}</div>
+                                <hr style="border-top: 1px solid #000;"/>
+                                <div style="text-align: center; font-size: 1.2em; margin-bottom: 10px;">
+                                    <strong>Customer Information</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Customer:</strong> {{ order_data.customer.first_name }} {{ order_data.customer.last_name }}</span>
+                                    <span><strong>Phone:</strong> {{ order_data.customer.phone_number }}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Email:</strong> {{ order_data.customer.email }}</span>
+                                </div>
+                                <hr style="border-top: 1px solid #000;"/>
+                                <div style="text-align: center; font-size: 1.2em; margin-bottom: 10px;">
+                                    <strong>Services Purchased</strong>
+                                </div>
+
+                                {% for service in order_data.services %}
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>{{ forloop.counter }}. {{ service.custom_service_name|default:service.service__name }} x{{ service.quantity }}</span>
+                                    <span>${{ service.custom_service_price|default:service.service__price|floatformat:2 }}</span>
+                                </div>
+                                {% endfor %}
+
+                                <hr style="border-top: 1px solid #000;"/>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Subtotal</strong></span>
+                                    <span><strong>${{ order_data.subtotal|floatformat:2 }}</strong></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Tax</strong></span>
+                                    <span><strong>${{ order_data.tax|floatformat:2 }}</strong></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Discount</strong></span>
+                                    <span><strong>-${{ order_data.discount|floatformat:2 }}</strong></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Tip</strong></span>
+                                    <span><strong>+${{ order_data.tip|floatformat:2 }}</strong></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Grand Total</strong></span>
+                                    <span><strong>${{ order_data.grand_total|floatformat:2 }}</strong></span>
+                                </div>
+                                <hr style="border-top: 1px solid #000;"/>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Cash Received</strong></span>
+                                    <span><strong>${{ order_data.cash_received|floatformat:2 }}</strong></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Card Received</strong></span>
+                                    <span><strong>${{ order_data.card_received|floatformat:2 }}</strong></span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span><strong>Change Returned</strong></span>
+                                    <span><strong>${{ order_data.change_returned|floatformat:2 }}</strong></span>
+                                </div>
+                                <hr style="border-top: 1px solid #000;"/>
+                                <div style="text-align: center; margin-top: 10px;">
+                                    <strong>Thank you for your visit!</strong>
+                                </div>
+                            {% else %}
+                                <p>No order found to display.</p>
+                            {% endif %}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary">Print Receipt</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<!-- Bootstrap and custom JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'main_app/js/main.js' %}"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<footer id="footer" class="footer-bar">
+    <div id="footer-date-time" class="left-align"></div>
+    <div id="user-session-info" class="right-align">Sara | session info</div>
+</footer>
+
+</body>
+</html>
